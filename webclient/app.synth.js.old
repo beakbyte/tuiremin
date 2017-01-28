@@ -1,0 +1,328 @@
+var SYZE = {};
+
+SYZE.audio = {
+    context: new AudioContext(),
+    tuna:    null
+};
+
+SYZE.audio.tuna = new Tuna( SYZE.audio.context );
+
+
+// synthesizer
+SYZE.audio.Synth = function( synth_args ) {
+    public:
+        this.output  = SYZE.audio.context.destination;
+
+        this.play = function( pitch ) {
+            if ( !dco_set[ pitch ] ) {
+                var dco = new SYZE.audio.DCO({
+                    pitch:  pitch,
+                    osc_1:  synth_args.osc_1,
+                    osc_2:  synth_args.osc_2,
+                    osc_3:  synth_args.osc_3,
+                    env:    synth_args.env
+                });
+                
+                var dca = new SYZE.audio.DCA({
+                    volume: synth_args.volume
+                });
+
+                var dcf = new SYZE.audio.DCF( synth_args.filter );
+                                          
+                var eg_dca = new SYZE.audio.EG( synth_args.env );
+                var eg_dcf = new SYZE.audio.EG( synth_args.filter.env );
+
+                eg_dca.connect( dca.amplitude );
+                eg_dcf.connect( dcf.frequency );
+
+                /*var fx1 = new SYZE.audio.FX( { effect: 'delay' } );
+                var fx2 = new SYZE.audio.FX( { effect: 'chorus' } );
+                var fx3 = new SYZE.audio.FX( { effect: 'phaser' } );
+                var fx4 = new SYZE.audio.FX( { effect: 'overdrive' } );*/
+                
+                dco.connect( dca.input );
+                dca.connect( dcf.input );
+                //dca.connect( this.output );
+                //dcf.connect( fx1.input );
+                dcf.connect( this.output );
+                /*fx1.connect( fx2.input );
+                fx2.connect( fx3.input );
+                fx3.connect( fx4.input );
+                fx4.connect( this.output );*/
+                
+                dco.start();
+
+                dco_set[ pitch ] = dco;
+            }
+        };
+
+        this.stop = function( pitch ) {
+            if ( dco_set[ pitch ] ) {
+                dco_set[ pitch ].stop();
+
+                delete dco_set[ pitch ];
+            }
+        };
+    
+    
+    private:
+        var dco_set = [];
+        
+        function __Synth() {
+            if ( synth_args && synth_args.output ) { this.output = synth_args.output; }
+        };
+
+        __Synth();
+};
+
+// digitally controlled oscillator
+SYZE.audio.DCO = function( dco_args ) {
+    public:
+        this.output = SYZE.audio.context.createGain();
+
+        this.connect = function( node ) {
+            this.output.connect( node );
+            
+            if ( node.gain ) { dca_node = node; }
+        };
+
+        this.start   = function() {
+            osc_nodes.forEach( function( osc_node ) {
+                osc_node.start( SYZE.audio.context.currentTime );
+            });
+        };
+
+        this.stop   = function() {
+            var now = SYZE.audio.context.currentTime;
+
+            if ( dco_args.env && dco_args.env.hold ) {
+                dca_node.gain.linearRampToValueAtTime( 0, now + dco_args.env.attack + dco_args.env.hold + dco_args.env.decay + dco_args.env.release);
+            }
+            
+            osc_nodes.forEach( function( osc_node ) {
+                osc_node.stop( now + dco_args.env.attack + dco_args.env.decay + dco_args.env.hold + dco_args.env.release );
+            });
+        };
+
+    private:
+        var osc_nodes  = [];
+        var gain_nodes = [];
+        var dca_node;
+        
+        function __DCO( dco_args, output ) {
+            if ( dco_args.osc_1 ) { setOsc( dco_args.osc_1, output ); }
+            if ( dco_args.osc_2 ) { setOsc( dco_args.osc_2, output ); }
+            if ( dco_args.osc_3 ) { setOsc( dco_args.osc_3, output ); }
+        };
+
+        function setOsc( osc_args, output ) {
+            var osc_node  = SYZE.audio.context.createOscillator();
+            var gain_node = SYZE.audio.context.createGain();
+            
+            osc_node.frequency.value = dco_args.pitch;
+            osc_node.type            = osc_args.type;
+            osc_node.detune.value    = osc_args.detune;
+            gain_node.gain.value     = osc_args.volume;
+            
+            osc_node.connect( gain_node );
+            gain_node.connect( output );
+            
+            osc_nodes.push( osc_node );
+            gain_nodes.push( gain_node );
+        };
+
+        __DCO( dco_args, this.output );
+};
+
+// digitally controlled amplifier
+SYZE.audio.DCA = function( dca_args ) {
+    public:
+        this.input     = SYZE.audio.context.createGain();    
+        this.amplitude = this.input.gain;
+        
+        this.connect = function( node ) {
+            this.input.connect( node );
+        };
+            
+            
+    private:
+        function __DCA( dca_args, input ) {
+            setDca( dca_args, input );
+        };
+
+        function setDca( dca_args, input ) {
+            input.gain.value = dca_args.volume;
+        }
+
+        __DCA( dca_args, this.input );
+};
+
+// digitlly controlled filter
+SYZE.audio.DCF = function( dcf_args ) {
+    public:
+        this.input     = SYZE.audio.context.createBiquadFilter();    
+        this.frequency = this.input.frequency;
+        
+        this.connect = function( node ) {
+            this.input.connect( node );
+        };
+            
+            
+    private:
+        function __DCF( dcf_args, input ) {
+            setDcf( dcf_args, input );
+        };
+
+        function setDcf( dcf_args, input ) {
+            input.type            = dcf_args.type;
+            input.frequency.value = dcf_args.frequency;
+            input.gain.value      = dcf_args.gain;
+            input.Q.value         = dcf_args.q;
+        }
+
+        __DCF( dcf_args, this.input );
+};
+
+// envelope generator
+SYZE.audio.EG = function( eg_args ) {
+    public:
+        this.connect = function( parameter ) {
+            var now  = SYZE.audio.context.currentTime;                     
+            var peak = parameter.value;
+            
+            parameter.cancelScheduledValues( now );
+            parameter.setValueAtTime( 0, now );
+            parameter.linearRampToValueAtTime( peak, now + eg_args.attack );
+            parameter.linearRampToValueAtTime( peak * eg_args.sustain, now + eg_args.attack + eg_args.decay );
+            
+            if ( !eg_args.hold )
+            {
+                parameter.linearRampToValueAtTime( 0, now + eg_args.attack + eg_args.decay  + eg_args.release );
+            }
+        };
+};
+
+// low frequency oscillator
+SYZE.audio.LFO = function( lfo_args ) {
+    
+};
+
+// effect generator
+SYZE.audio.FX = function( fx_args ) {
+    public:
+        this.input     = SYZE.audio.context.createGain();    
+        
+        this.connect = function( node ) {
+            output.connect( node );
+        };
+            
+            
+    private:
+        var output;
+    
+        function __FX( fx_args, input ) {
+            setFx( fx_args, input );
+        };
+
+        function setFx( fx_args, input ) {
+            switch ( fx_args.effect )
+            {
+                case 'delay':
+                {
+                    output = new SYZE.audio.tuna.Delay({
+                        feedback: 0.7,    //0 to 1+
+                        delayTime: 300,    //how many milliseconds should the wet signal be delayed?
+                        wetLevel: 0.25,    //0 to 1+
+                        dryLevel: 1,       //0 to 1+
+                        cutoff: 2000,      //cutoff frequency of the built in lowpass-filter. 20 to 22050
+                        bypass: 0
+                    });
+                    
+                    break;
+                }
+                case 'chorus':
+                {
+                    output = new SYZE.audio.tuna.Chorus({
+                        rate: 4,         //0.01 to 8+
+                        feedback: 0.2,     //0 to 1+
+                        delay: 0.0045,     //0 to 1
+                        bypass: 0          //the value 1 starts the effect as bypassed, 0 or 1
+                    });
+
+                    break;
+                }
+                case 'phaser':
+                {
+                    output = new SYZE.audio.tuna.Phaser({
+                        rate: 1.2,                     //0.01 to 8 is a decent range, but higher values are possible
+                        depth: 0.3,                    //0 to 1
+                        feedback: 0.2,                 //0 to 1+
+                        stereoPhase: 30,               //0 to 180
+                        baseModulationFrequency: 700,  //500 to 1500
+                        bypass: 0
+                    });
+                    
+                    break;
+                }
+                case 'overdrive':
+                {
+                    output = new SYZE.audio.tuna.Overdrive({
+                        outputGain: 0.1,         //0 to 1+
+                        drive: 0.1,              //0 to 1
+                        curveAmount: 0.7,          //0 to 1
+                        algorithmIndex: 0,       //0 to 5, selects one of our drive algorithms
+                        bypass: 0
+                    });
+                    
+                    break;
+                }
+            }
+            
+            input.connect( output );
+        }
+
+        __FX( fx_args, this.input );
+};
+
+
+
+var synth_1 = new SYZE.audio.Synth({
+    output: SYZE.audio.context.destination,
+    osc_1: {
+        type:   'sawtooth',
+        detune: 0,
+        volume: 0.5
+    },
+    osc_2: {
+        type:   'sawtooth',
+        detune: 1200,
+        volume: 0.2
+    },
+    osc_3: {
+        type:   'sine',
+        detune: -1200,
+        volume: 0.1
+    },
+    env: {
+        attack:  0.4,
+        decay:   0,
+        sustain: 1,
+        release: 0.3,
+        hold:    0.2
+    },
+    volume: 0.5,
+    filter: {
+        type:      'lowpass',
+        frequency: '8000',
+        gain:      0.5,
+        q:         1,
+        detune:    0,
+        env: {
+            attack:  0.5,
+            decay:   0.1,
+            sustain: 0.1,
+            release: 0.9,
+            hold:    0.1
+        }
+    }
+});

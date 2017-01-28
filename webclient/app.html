@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js"></script>
+<script src="https://code.highcharts.com/highcharts.js"></script>
+<script src="tuna-min.js"></script>
+<script src="app.plotter.js"></script>
+<script src="app.websocket.js"></script>
+<style>
+	body {
+		font-family: Arial;
+		font-size: 12px;
+	}
+</style>
+
+<script type="text/javascript">
+	var data = {
+		s1: 0.0,
+		s2: 0.0,
+		s3: 0.0
+	};
+
+	var pitch = 0.0;
+
+	$(document).ready(function () {
+        SensorPlotter();
+        setTimeout(function() {
+        	$($('.highcharts-legend-item')[0]).click();
+        	$($('.highcharts-legend-item')[1]).click();
+
+        	setInterval(function() {
+        		freqInp(((data.s1)*10).toFixed(2));
+        		filterInp((data.s2*data.s2*10).toFixed(2));
+        	}, 100);
+
+        },1000);
+    });
+</script>
+
+<meta charset="utf-8">
+<title></title>
+</head>
+<body>
+	
+	<div id="container" style="width: 96%; min-width: 310px; height: 400px; margin: 0 auto"></div>
+
+	<div style="display: inline-block; width:100%; border-top: 1px solid #99bbee; border-bottom: 1px solid #99bbee; padding: 20px 0 20px 0; margin-top: 20px; margin-bottom: 20px;">
+		<div style="display: inline-block; width:20%; padding-left: 190px;">
+			
+			<b>Server:</b> <span id="server_state">waiting</span><br>
+			<br>
+			<b>Sensor A:</b> <span id="sensor_a_value">-</span><br>
+			<b>Sensor B:</b> <span id="sensor_b_value">-</span><br><br>
+			<input type="checkbox" name="hold" id="holdVal" onclick='setHold(event)'><label for='holdVal'>Hold Sensor A value</label><br>
+		</div>
+
+		<div style="position: relative; display: inline-block; width:60%; top: -35px;">
+			<div style="display: inline-block; width:19%;">
+			    <label for='gain'><b>Gain</b></label>
+			    <input id='gain' type='range' value='0.5' min='0.0' max='1.0' step='0.01' oninput='gainInp(value)' /><br>
+			    <output for='gain' id='gainVal'>0.5</output>
+		  	</div>
+
+		  	<div style="display: inline-block; width:19%;">
+			    <label for='freq'><b>Freq</b></label>
+			    <input id='freq' type='range' value='110' min='55' max='400' step='10' oninput='freqInp(value)' /><br>
+			    <output for='freq' id='freqVal'>110</output>
+		  	</div>
+
+		  	<div style="display: inline-block; width:19%;">
+			    <label for='shape'><b>Shape</b></label>
+			    <input id='shape' type='range' value='2' min='1' max='4' step='1' oninput='shapeInp(value)' /><br>
+			    <output for='shape' id='shapeVal'>2</output>
+		  	</div>
+
+		  	<div style="display: inline-block; width:19%;">
+			    <label for='filter'><b>Filter</b></label>
+			    <input id='filter' type='range' value='8000' min='1' max='10000' step='0.01' oninput='filterInp(value)' /><br>
+			    <output for='filter' id='filterVal'>8000</output>
+		  	</div>
+
+		  	<div style="display: inline-block; width:19%;">
+			    <label for='scale'><b>Scale</b></label>
+			    <input id='scale' type='range' value='0' min='0' max='5' step='1' oninput='setScale(value)' /><br>
+			    <output for='scale' id='scaleVal'>OFF</output>
+		  	</div>
+		</div>
+		</div>
+
+   	<canvas id="scope" width="800" height="300" style="margin: 60px 40px 0 40px; width:46%; height: 300px;"></canvas> 
+    <canvas id="spectrum" width="800" height="600" style="width:46%; height: 300px;"></canvas>
+<script src="app.synth.js"></script>
+</body>
+</html>
